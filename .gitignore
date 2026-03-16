@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+/venv/
+venv/
+
+# Output and input data
+/output/
+output/
+/input_csv/
+input_csv/
+/input_qgis/
+input_qgis/
+
+# Working directory (generated files)
+/wpmz/
+
+# Legacy/archive
+/old/
+old/
+
+# Versioned scripts (not for public release)
+generate_flight_files_v*.py
+crop_drone_images*.py
+lib/file_creator_v*.py
+
+# Reference documents
+/ref/
+
+# Drone images
+uav_images_*/
+*.JPG
+*.jpg
+
+# Large binary files
+*.tif
+*.tif.aux.xml
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
