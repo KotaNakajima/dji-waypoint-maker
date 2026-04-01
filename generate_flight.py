@@ -17,6 +17,7 @@ from lib.csv_parser import parse_csv_input
 from lib.object_calculator import calculate_object_details
 from lib.drone_config import (
     DRONE_MODELS,
+    M3M_IMAGE_FORMATS,
     get_drone_config,
     DEFAULT_VD_HEIGHT,
     DEFAULT_OBL_HEIGHT,
@@ -319,10 +320,32 @@ def get_drone_model():
             model = "M3E"
         if model in DRONE_MODELS:
             print(f"Selected: {DRONE_MODELS[model]['name']}")
-            return model
+            break
         else:
             valid = ", ".join(DRONE_MODELS.keys())
             print(f"Invalid model. Choose from: {valid}")
+
+    # M3M camera selection
+    selected_image_format = None
+    if model == "M3M":
+        print("\nCamera selection for Mavic 3M:")
+        for key, opt in M3M_IMAGE_FORMATS.items():
+            default_mark = " (default)" if key == "3" else ""
+            print(f"  {key}: {opt['label']}{default_mark}")
+        print()
+
+        while True:
+            choice = input("Select camera [1/2/3] (default: 3): ").strip()
+            if not choice:
+                choice = "3"
+            if choice in M3M_IMAGE_FORMATS:
+                selected_image_format = M3M_IMAGE_FORMATS[choice]["imageFormat"]
+                print(f"Camera: {M3M_IMAGE_FORMATS[choice]['label']}")
+                break
+            else:
+                print("Invalid choice. Enter 1, 2, or 3.")
+
+    return model, selected_image_format
 
 
 def get_flight_params(route_type, drone_config=None):
@@ -569,7 +592,7 @@ def get_output_directory(flight_name):
 def confirm_settings(route_type, drone_model, flight_name, output_dir,
                      height, speed, csv_path=None, num_objects=None,
                      oblique_settings=None, mapping_settings=None,
-                     mapping_corners=None):
+                     mapping_corners=None, drone_config=None):
     print("\n" + "=" * 50)
     print("Confirmation")
     print("=" * 50)
@@ -587,6 +610,11 @@ def confirm_settings(route_type, drone_model, flight_name, output_dir,
     }
     print(f"  Route type: {route_labels[route_type]}")
     print(f"  Drone: {DRONE_MODELS[drone_model]['name']}")
+    if drone_model == "M3M":
+        fmt = drone_config.get("imageFormat", "visable,narrow_band") if drone_config else "visable,narrow_band"
+        fmt_labels = {"visable": "RGB only", "narrow_band": "Multispectral only",
+                      "visable,narrow_band": "RGB + Multispectral"}
+        print(f"  Camera: {fmt_labels.get(fmt, fmt)}")
     print(f"  Height: {height}m, Speed: {speed}m/s")
 
     if oblique_settings:
@@ -698,8 +726,10 @@ def main():
             mapping_settings = get_mapping2d_settings(mapping_corners)
 
         # Step 3: Drone model
-        drone_model = get_drone_model()
+        drone_model, selected_image_format = get_drone_model()
         drone_config = get_drone_config(drone_model)
+        if selected_image_format is not None:
+            drone_config = {**drone_config, "imageFormat": selected_image_format}
 
         # Step 4: Flight params
         height, speed = get_flight_params(route_type, drone_config)
@@ -718,6 +748,7 @@ def main():
             oblique_settings=oblique_settings,
             mapping_settings=mapping_settings,
             mapping_corners=mapping_corners,
+            drone_config=drone_config,
         ):
             return
 

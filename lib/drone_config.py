@@ -64,6 +64,13 @@ DEFAULT_OBL_GIMBAL_ANGLE = 45   # degrees (from nadir=90)
 DEFAULT_OBL_ZOOM = 4            # optical zoom factor
 DEFAULT_MAPPING2D_HEIGHT = 50   # meters
 
+# M3M camera (imageFormat) options
+M3M_IMAGE_FORMATS = {
+    "1": {"label": "RGB only",                   "imageFormat": "visable"},
+    "2": {"label": "Multispectral only",          "imageFormat": "narrow_band"},
+    "3": {"label": "RGB + Multispectral",         "imageFormat": "visable,narrow_band"},
+}
+
 # Common shutter speeds for blur-free speed calculation
 SHUTTER_SPEEDS = [500, 800, 1000, 1600, 2000]
 MAX_BLUR_PX = 0.5  # max acceptable motion blur in pixels
