@@ -19,6 +19,7 @@ from lib.drone_config import (
     DRONE_MODELS,
     M3M_IMAGE_FORMATS,
     get_drone_config,
+    get_effective_camera,
     DEFAULT_VD_HEIGHT,
     DEFAULT_OBL_HEIGHT,
     DEFAULT_OBL_GIMBAL_ANGLE,
@@ -369,16 +370,34 @@ def get_flight_params(route_type, drone_config=None):
         except ValueError:
             print("Please enter a number.")
 
-    # Show blur-free max speed reference
+    # Show GSD and blur-free max speed reference
     if drone_config and "image_width_px" in drone_config:
-        gsd_m = (drone_config["sensor_width_mm"] * height) / \
-                (drone_config["focal_length_mm"] * drone_config["image_width_px"])
+        cam = get_effective_camera(drone_config)
+        gsd_m = (cam["sensor_width_mm"] * height) / \
+                (cam["focal_length_mm"] * cam["image_width_px"])
         gsd_cm = gsd_m * 100
-        print(f"\n  GSD: {gsd_cm:.2f} cm/px at {height}m")
+
+        # M3M: show both RGB and multispectral GSD
+        if "ms_sensor_width_mm" in drone_config:
+            rgb_gsd = (drone_config["sensor_width_mm"] * height) / \
+                      (drone_config["focal_length_mm"] * drone_config["image_width_px"])
+            ms_gsd = (drone_config["ms_sensor_width_mm"] * height) / \
+                     (drone_config["ms_focal_length_mm"] * drone_config["ms_image_width_px"])
+            print(f"\n  GSD at {height}m:")
+            print(f"    RGB:           {rgb_gsd * 100:.2f} cm/px")
+            print(f"    Multispectral: {ms_gsd * 100:.2f} cm/px")
+        else:
+            print(f"\n  GSD: {gsd_cm:.2f} cm/px at {height}m")
+
         print(f"  Blur-free max speed (max {MAX_BLUR_PX}px motion blur):")
         for ss in SHUTTER_SPEEDS:
             max_spd = MAX_BLUR_PX * gsd_m / (1.0 / ss)
             print(f"    1/{ss:<4d}: {max_spd:.1f} m/s")
+
+        # Shooting interval speed constraint
+        min_interval = cam.get("min_shoot_interval_s")
+        if min_interval and min_interval >= 1.0:
+            print(f"  * Min shooting interval: {min_interval:.1f}s (limits max effective speed)")
         print()
 
     # Speed
@@ -770,6 +789,17 @@ def main():
             )
             print(f"  Line spacing: {line_spacing:.1f} m")
             print(f"  Photo interval: {photo_interval:.1f} m")
+
+            # Check shooting interval constraint
+            cam = get_effective_camera(drone_config)
+            min_interval = cam.get("min_shoot_interval_s", 0)
+            if min_interval > 0:
+                max_speed_by_interval = photo_interval / min_interval
+                if speed > max_speed_by_interval:
+                    print(f"  WARNING: Speed {speed:.1f} m/s exceeds max {max_speed_by_interval:.1f} m/s")
+                    print(f"           (photo interval {photo_interval:.1f}m / min shoot interval {min_interval:.1f}s)")
+                    speed = max_speed_by_interval
+                    print(f"           -> Speed adjusted to {speed:.1f} m/s")
 
             # Generate waypoints
             waypoints = generate_mapping2d_waypoints(

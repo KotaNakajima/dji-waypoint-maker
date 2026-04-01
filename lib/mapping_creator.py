@@ -7,6 +7,8 @@ Generates both template.kml and waylines.wpml with calculated flight paths.
 import math
 import time
 
+from lib.drone_config import get_effective_camera
+
 
 # ---------------------------------------------------------------------------
 # Flight line calculation
@@ -16,11 +18,15 @@ def calculate_mapping2d_spacing(height, forward_overlap, side_overlap, drone_con
     """
     Calculate line spacing and photo interval from camera specs and overlap rates.
 
+    When M3M is selected with multispectral, uses the multispectral camera
+    specs (narrower FOV) as the limiting factor for spacing.
+
     Returns:
         (line_spacing_m, photo_interval_m)
     """
-    hfov = math.radians(drone_config["horizontal_fov_deg"])
-    vfov = math.radians(drone_config["vertical_fov_deg"])
+    cam = get_effective_camera(drone_config)
+    hfov = math.radians(cam["horizontal_fov_deg"])
+    vfov = math.radians(cam["vertical_fov_deg"])
 
     # Ground footprint at given height (nadir)
     footprint_across = 2.0 * height * math.tan(hfov / 2.0)  # perpendicular to flight
@@ -196,14 +202,17 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
       <wpml:overlap>
         <wpml:orthoLidarOverlapH>{forward_overlap}</wpml:orthoLidarOverlapH>
         <wpml:orthoLidarOverlapW>{side_overlap}</wpml:orthoLidarOverlapW>
+        <wpml:orthoCameraOverlapH>{forward_overlap}</wpml:orthoCameraOverlapH>
+        <wpml:orthoCameraOverlapW>{side_overlap}</wpml:orthoCameraOverlapW>
       </wpml:overlap>
-      <wpml:ellipsoidHeight>{height}</wpml:ellipsoidHeight>
-      <wpml:height>{height}</wpml:height>
       <wpml:shootType>{shoot_type}</wpml:shootType>
       <wpml:direction>{direction}</wpml:direction>
       <wpml:margin>{margin}</wpml:margin>
       <wpml:globalHeight>{height}</wpml:globalHeight>
       <Placemark>
+        <wpml:caliFlightEnable>0</wpml:caliFlightEnable>
+        <wpml:elevationOptimizeEnable>1</wpml:elevationOptimizeEnable>
+        <wpml:smartObliqueEnable>0</wpml:smartObliqueEnable>
         <Polygon>
           <outerBoundaryIs>
             <LinearRing>
@@ -211,6 +220,8 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
             </LinearRing>
           </outerBoundaryIs>
         </Polygon>
+        <wpml:ellipsoidHeight>{height}</wpml:ellipsoidHeight>
+        <wpml:height>{height}</wpml:height>
       </Placemark>
     </Folder>'''
 

@@ -45,6 +45,7 @@ DRONE_MODELS = {
         "payloadSubEnumValue": 3,
         "payloadPositionIndex": 0,
         "imageFormat": "visable,narrow_band",
+        # RGB camera (4/3 CMOS, 20MP) - same as M3E
         "sensor_width_mm": 17.3,
         "sensor_height_mm": 13.0,
         "focal_length_mm": 12.0,
@@ -52,6 +53,16 @@ DRONE_MODELS = {
         "vertical_fov_deg": 56.8,
         "image_width_px": 5280,
         "image_height_px": 3956,
+        "min_shoot_interval_s": 0.7,
+        # Multispectral camera (1/2.8" CMOS, 5MP x4 bands)
+        "ms_sensor_width_mm": 5.08,
+        "ms_sensor_height_mm": 3.81,
+        "ms_focal_length_mm": 4.29,
+        "ms_horizontal_fov_deg": 61.2,
+        "ms_vertical_fov_deg": 48.1,
+        "ms_image_width_px": 2592,
+        "ms_image_height_px": 1944,
+        "ms_min_shoot_interval_s": 2.0,
     },
 }
 
@@ -74,6 +85,45 @@ M3M_IMAGE_FORMATS = {
 # Common shutter speeds for blur-free speed calculation
 SHUTTER_SPEEDS = [500, 800, 1000, 1600, 2000]
 MAX_BLUR_PX = 0.5  # max acceptable motion blur in pixels
+
+
+def get_effective_camera(drone_config):
+    """
+    Return the camera specs that determine flight planning (GSD, spacing, speed).
+
+    When narrow_band is included in imageFormat, the multispectral camera is the
+    limiting factor (lower resolution, narrower FOV). Otherwise use the RGB camera.
+
+    Returns:
+        dict with sensor_width_mm, sensor_height_mm, focal_length_mm,
+        horizontal_fov_deg, vertical_fov_deg, image_width_px, image_height_px,
+        min_shoot_interval_s
+    """
+    image_format = drone_config.get("imageFormat", "wide")
+    use_ms = "narrow_band" in image_format and "ms_sensor_width_mm" in drone_config
+
+    if use_ms:
+        return {
+            "sensor_width_mm": drone_config["ms_sensor_width_mm"],
+            "sensor_height_mm": drone_config["ms_sensor_height_mm"],
+            "focal_length_mm": drone_config["ms_focal_length_mm"],
+            "horizontal_fov_deg": drone_config["ms_horizontal_fov_deg"],
+            "vertical_fov_deg": drone_config["ms_vertical_fov_deg"],
+            "image_width_px": drone_config["ms_image_width_px"],
+            "image_height_px": drone_config["ms_image_height_px"],
+            "min_shoot_interval_s": drone_config.get("ms_min_shoot_interval_s", 2.0),
+        }
+    else:
+        return {
+            "sensor_width_mm": drone_config["sensor_width_mm"],
+            "sensor_height_mm": drone_config["sensor_height_mm"],
+            "focal_length_mm": drone_config["focal_length_mm"],
+            "horizontal_fov_deg": drone_config["horizontal_fov_deg"],
+            "vertical_fov_deg": drone_config["vertical_fov_deg"],
+            "image_width_px": drone_config["image_width_px"],
+            "image_height_px": drone_config["image_height_px"],
+            "min_shoot_interval_s": drone_config.get("min_shoot_interval_s", 0.7),
+        }
 
 
 def get_drone_config(model_key):
