@@ -137,7 +137,9 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
     drone_enum = drone_config["droneEnumValue"]
     drone_sub_enum = drone_config["droneSubEnumValue"]
     payload_enum = drone_config["payloadEnumValue"]
+    payload_sub_enum = drone_config["payloadSubEnumValue"]
     payload_pos = drone_config["payloadPositionIndex"]
+    image_format = drone_config["imageFormat"]
 
     kml = f'''<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
@@ -158,6 +160,7 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
             </wpml:droneInfo>
             <wpml:payloadInfo>
                 <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
+                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
                 <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
             </wpml:payloadInfo>
         </wpml:missionConfig>'''
@@ -180,7 +183,7 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
       </wpml:waylineCoordinateSysParam>
       <wpml:payloadParam>
         <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
-        <wpml:imageFormat>wide</wpml:imageFormat>
+        <wpml:imageFormat>{image_format}</wpml:imageFormat>
       </wpml:payloadParam>
       <wpml:globalWaypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:globalWaypointTurnMode>
       <wpml:globalUseStraightLine>1</wpml:globalUseStraightLine>
@@ -241,6 +244,7 @@ def create_mapping2d_wpml(waypoints, height, speed, photo_interval,
     drone_enum = drone_config["droneEnumValue"]
     drone_sub_enum = drone_config["droneSubEnumValue"]
     payload_enum = drone_config["payloadEnumValue"]
+    payload_sub_enum = drone_config["payloadSubEnumValue"]
     payload_pos = drone_config["payloadPositionIndex"]
 
     last_idx = len(waypoints) - 1
@@ -270,6 +274,7 @@ def create_mapping2d_wpml(waypoints, height, speed, photo_interval,
             </wpml:droneInfo>
             <wpml:payloadInfo>
                 <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
+                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
                 <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
             </wpml:payloadInfo>
         </wpml:missionConfig>

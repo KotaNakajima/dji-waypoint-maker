@@ -31,7 +31,9 @@ def create_vd_kml(objects, height, speed, drone_config):
     drone_enum = drone_config["droneEnumValue"]
     drone_sub_enum = drone_config["droneSubEnumValue"]
     payload_enum = drone_config["payloadEnumValue"]
+    payload_sub_enum = drone_config["payloadSubEnumValue"]
     payload_pos = drone_config["payloadPositionIndex"]
+    image_format = drone_config["imageFormat"]
 
     kml = f'''<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
@@ -52,6 +54,7 @@ def create_vd_kml(objects, height, speed, drone_config):
             </wpml:droneInfo>
             <wpml:payloadInfo>
                 <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
+                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
                 <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
             </wpml:payloadInfo>
         </wpml:missionConfig>'''
@@ -70,8 +73,8 @@ def create_vd_kml(objects, height, speed, drone_config):
         <wpml:surfaceRelativeHeight>0</wpml:surfaceRelativeHeight>
       </wpml:waylineCoordinateSysParam>
       <wpml:payloadParam>
-        <wpml:payloadPositionIndex></wpml:payloadPositionIndex>
-        <wpml:imageFormat>wide</wpml:imageFormat>
+        <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
+        <wpml:imageFormat>{image_format}</wpml:imageFormat>
       </wpml:payloadParam>
       <wpml:globalWaypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:globalWaypointTurnMode>
       <wpml:globalUseStraightLine>1</wpml:globalUseStraightLine>
@@ -208,6 +211,7 @@ def create_vd_wpml(objects, height, speed, drone_config):
     drone_enum = drone_config["droneEnumValue"]
     drone_sub_enum = drone_config["droneSubEnumValue"]
     payload_enum = drone_config["payloadEnumValue"]
+    payload_sub_enum = drone_config["payloadSubEnumValue"]
     payload_pos = drone_config["payloadPositionIndex"]
 
     wpml = f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -227,6 +231,7 @@ def create_vd_wpml(objects, height, speed, drone_config):
             </wpml:droneInfo>
             <wpml:payloadInfo>
                 <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
+                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
                 <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
             </wpml:payloadInfo>
         </wpml:missionConfig>'''
@@ -420,7 +425,9 @@ def create_obl_kml(objects, flight_direction, altitude, gimbal_angle,
     drone_enum = drone_config["droneEnumValue"]
     drone_sub_enum = drone_config["droneSubEnumValue"]
     payload_enum = drone_config["payloadEnumValue"]
+    payload_sub_enum = drone_config["payloadSubEnumValue"]
     payload_pos = drone_config["payloadPositionIndex"]
+    image_format = drone_config["imageFormat"]
 
     kml = f'''<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
@@ -441,6 +448,7 @@ def create_obl_kml(objects, flight_direction, altitude, gimbal_angle,
             </wpml:droneInfo>
             <wpml:payloadInfo>
                 <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
+                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
                 <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
             </wpml:payloadInfo>
         </wpml:missionConfig>'''
@@ -459,8 +467,8 @@ def create_obl_kml(objects, flight_direction, altitude, gimbal_angle,
         <wpml:surfaceRelativeHeight>0</wpml:surfaceRelativeHeight>
       </wpml:waylineCoordinateSysParam>
       <wpml:payloadParam>
-        <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>
-        <wpml:imageFormat>wide</wpml:imageFormat>
+        <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
+        <wpml:imageFormat>{image_format}</wpml:imageFormat>
       </wpml:payloadParam>
       <wpml:globalWaypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:globalWaypointTurnMode>
       <wpml:globalUseStraightLine>1</wpml:globalUseStraightLine>
@@ -555,6 +563,7 @@ def create_obl_wpml(objects, flight_direction, altitude, gimbal_angle,
     drone_enum = drone_config["droneEnumValue"]
     drone_sub_enum = drone_config["droneSubEnumValue"]
     payload_enum = drone_config["payloadEnumValue"]
+    payload_sub_enum = drone_config["payloadSubEnumValue"]
     payload_pos = drone_config["payloadPositionIndex"]
 
     wpml = f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -574,6 +583,7 @@ def create_obl_wpml(objects, flight_direction, altitude, gimbal_angle,
             </wpml:droneInfo>
             <wpml:payloadInfo>
                 <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
+                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
                 <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
             </wpml:payloadInfo>
         </wpml:missionConfig>'''
