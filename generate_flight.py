@@ -18,6 +18,8 @@ from lib.object_calculator import calculate_object_details
 from lib.drone_config import (
     DRONE_MODELS,
     M3M_IMAGE_FORMATS,
+    DEFAULT_MISSION_CONFIG,
+    MISSION_CONFIG_OPTIONS,
     get_drone_config,
     get_effective_camera,
     DEFAULT_VD_HEIGHT,
@@ -349,7 +351,7 @@ def get_drone_model():
     return model, selected_image_format
 
 
-def get_flight_params(route_type, drone_config=None):
+def get_flight_params(route_type, drone_config=None, mapping_settings=None):
     print("\nStep 4: Flight Parameters")
     print("-" * 30)
 
@@ -370,12 +372,11 @@ def get_flight_params(route_type, drone_config=None):
         except ValueError:
             print("Please enter a number.")
 
-    # Show GSD and blur-free max speed reference
+    # Show GSD and speed reference
     if drone_config and "image_width_px" in drone_config:
         cam = get_effective_camera(drone_config)
         gsd_m = (cam["sensor_width_mm"] * height) / \
                 (cam["focal_length_mm"] * cam["image_width_px"])
-        gsd_cm = gsd_m * 100
 
         # M3M: show both RGB and multispectral GSD
         if "ms_sensor_width_mm" in drone_config:
@@ -387,17 +388,34 @@ def get_flight_params(route_type, drone_config=None):
             print(f"    RGB:           {rgb_gsd * 100:.2f} cm/px")
             print(f"    Multispectral: {ms_gsd * 100:.2f} cm/px")
         else:
-            print(f"\n  GSD: {gsd_cm:.2f} cm/px at {height}m")
+            print(f"\n  GSD: {gsd_m * 100:.2f} cm/px at {height}m")
 
-        print(f"  Blur-free max speed (max {MAX_BLUR_PX}px motion blur):")
-        for ss in SHUTTER_SPEEDS:
-            max_spd = MAX_BLUR_PX * gsd_m / (1.0 / ss)
-            print(f"    1/{ss:<4d}: {max_spd:.1f} m/s")
+        # Calculate shooting interval speed limit for mapping2d
+        interval_max_speed = None
+        if route_type == "mapping2d" and mapping_settings:
+            from lib.mapping_creator import calculate_mapping2d_spacing
+            forward_overlap, side_overlap = mapping_settings[0], mapping_settings[1]
+            _, photo_interval = calculate_mapping2d_spacing(
+                height, forward_overlap, side_overlap, drone_config
+            )
+            min_interval = cam.get("min_shoot_interval_s", 0)
+            if min_interval > 0:
+                interval_max_speed = photo_interval / min_interval
 
-        # Shooting interval speed constraint
-        min_interval = cam.get("min_shoot_interval_s")
-        if min_interval and min_interval >= 1.0:
-            print(f"  * Min shooting interval: {min_interval:.1f}s (limits max effective speed)")
+        # Combined speed reference table
+        print(f"  Max speed reference (blur limit: {MAX_BLUR_PX}px):")
+        if interval_max_speed is not None:
+            print(f"  {'Shutter':<10} {'Blur limit':>11} {'Shoot limit':>12} {'Effective':>10}")
+            print(f"  {'-'*10} {'-'*11} {'-'*12} {'-'*10}")
+            for ss in SHUTTER_SPEEDS:
+                blur_spd = MAX_BLUR_PX * gsd_m / (1.0 / ss)
+                effective = min(blur_spd, interval_max_speed)
+                print(f"    1/{ss:<4d}   {blur_spd:>6.1f} m/s   {interval_max_speed:>7.1f} m/s   {effective:>5.1f} m/s")
+            print(f"  * Shoot limit = photo interval {photo_interval:.1f}m / min interval {min_interval:.1f}s")
+        else:
+            for ss in SHUTTER_SPEEDS:
+                max_spd = MAX_BLUR_PX * gsd_m / (1.0 / ss)
+                print(f"    1/{ss:<4d}: {max_spd:.1f} m/s")
         print()
 
     # Speed
@@ -412,6 +430,93 @@ def get_flight_params(route_type, drone_config=None):
 
     print(f"Height: {height}m, Speed: {speed}m/s")
     return height, speed
+
+
+def get_advanced_settings():
+    """Interactive advanced mission settings. Returns a mission_config dict."""
+    config = dict(DEFAULT_MISSION_CONFIG)
+
+    menu_items = [
+        ("1", "finishAction",            "Finish action"),
+        ("2", "exitOnRCLost",            "RC signal lost"),
+        ("3", "executeRCLostAction",     "RC lost action"),
+        ("4", "takeOffSecurityHeight",   "Takeoff security height (m)"),
+        ("5", "globalTransitionalSpeed", "Transitional speed (m/s)"),
+        ("6", "globalRTHHeight",         "RTH height (m)"),
+        ("7", "flyToWaylineMode",        "Fly-to-wayline mode"),
+        ("8", "waylineAvoidLimitAreaMode", "Avoid limit area"),
+    ]
+
+    print("\nStep 4.5: Advanced Mission Settings (optional)")
+    print("-" * 50)
+
+    def display():
+        print("Current settings:")
+        for num, key, label in menu_items:
+            val = config[key]
+            opts = MISSION_CONFIG_OPTIONS.get(key)
+            if opts:
+                opts_str = f"  [{'/'.join(opts)}]"
+            elif key == "waylineAvoidLimitAreaMode":
+                opts_str = "  [0/1]"
+            else:
+                opts_str = ""
+            print(f"  {num}. {label + ':':<30} {val}{opts_str}")
+
+    display()
+
+    while True:
+        choice = input("\nEnter number to change (or Enter to continue): ").strip()
+        if not choice:
+            break
+
+        matched = None
+        for num, key, label in menu_items:
+            if choice == num:
+                matched = (key, label)
+                break
+        if not matched:
+            print("Invalid number.")
+            continue
+
+        key, label = matched
+        opts = MISSION_CONFIG_OPTIONS.get(key)
+
+        if opts:
+            print(f"  Options for {label}:")
+            for j, opt in enumerate(opts, 1):
+                current = " (current)" if opt == config[key] else ""
+                print(f"    {j}. {opt}{current}")
+            sel = input(f"  Select [1-{len(opts)}]: ").strip()
+            try:
+                idx = int(sel) - 1
+                if 0 <= idx < len(opts):
+                    config[key] = opts[idx]
+                    print(f"  -> {label}: {config[key]}")
+                else:
+                    print("  Invalid selection.")
+            except ValueError:
+                print("  Invalid input.")
+        elif key == "waylineAvoidLimitAreaMode":
+            sel = input(f"  Enter 0 or 1 (current: {config[key]}): ").strip()
+            if sel in ("0", "1"):
+                config[key] = int(sel)
+                print(f"  -> {label}: {config[key]}")
+            else:
+                print("  Invalid input.")
+        else:
+            sel = input(f"  Enter value (current: {config[key]}): ").strip()
+            try:
+                val = float(sel)
+                if val > 0:
+                    config[key] = val
+                    print(f"  -> {label}: {config[key]}")
+                else:
+                    print("  Please enter a positive number.")
+            except ValueError:
+                print("  Invalid number.")
+
+    return config
 
 
 def determine_row_orientation(heading_angle):
@@ -611,7 +716,8 @@ def get_output_directory(flight_name):
 def confirm_settings(route_type, drone_model, flight_name, output_dir,
                      height, speed, csv_path=None, num_objects=None,
                      oblique_settings=None, mapping_settings=None,
-                     mapping_corners=None, drone_config=None):
+                     mapping_corners=None, drone_config=None,
+                     mission_config=None):
     print("\n" + "=" * 50)
     print("Confirmation")
     print("=" * 50)
@@ -646,6 +752,17 @@ def confirm_settings(route_type, drone_model, flight_name, output_dir,
         fwd, side, direction, margin, shoot = mapping_settings
         print(f"  Overlap: forward={fwd}%, side={side}%")
         print(f"  Direction: {direction} deg, Margin: {margin}m, Shoot: {shoot}")
+
+    # Show mission settings that differ from defaults
+    if mission_config:
+        changed = {k: v for k, v in mission_config.items()
+                   if k in DEFAULT_MISSION_CONFIG and v != DEFAULT_MISSION_CONFIG[k]}
+        if changed:
+            print("  Mission settings (non-default):")
+            for k, v in changed.items():
+                print(f"    {k}: {v}")
+        else:
+            print("  Mission settings: all defaults")
 
     print(f"  Flight name: {flight_name}")
     print(f"  Output: output/{output_dir}")
@@ -751,7 +868,10 @@ def main():
             drone_config = {**drone_config, "imageFormat": selected_image_format}
 
         # Step 4: Flight params
-        height, speed = get_flight_params(route_type, drone_config)
+        height, speed = get_flight_params(route_type, drone_config, mapping_settings)
+
+        # Step 4.5: Advanced mission settings
+        mission_config = get_advanced_settings()
 
         # Step 5: Flight name
         flight_name = get_flight_name(route_type)
@@ -768,6 +888,7 @@ def main():
             mapping_settings=mapping_settings,
             mapping_corners=mapping_corners,
             drone_config=drone_config,
+            mission_config=mission_config,
         ):
             return
 
@@ -819,7 +940,7 @@ def main():
             # template.kml
             kml_content = create_mapping2d_kml(
                 [mapping_corners], height, speed, forward_overlap, side_overlap,
-                direction, margin, shoot_type, drone_config
+                direction, margin, shoot_type, drone_config, mission_config
             )
             kml_path = os.path.join(wpmz_dir, "template.kml")
             with open(kml_path, "w", encoding="utf-8") as f:
@@ -827,7 +948,8 @@ def main():
 
             # waylines.wpml
             wpml_content = create_mapping2d_wpml(
-                waypoints, height, speed, photo_interval, shoot_type, drone_config
+                waypoints, height, speed, photo_interval, shoot_type, drone_config,
+                mission_config
             )
             wpml_path = os.path.join(wpmz_dir, "waylines.wpml")
             with open(wpml_path, "w", encoding="utf-8") as f:
@@ -872,14 +994,14 @@ def main():
 
                     kml_content = create_obl_kml(
                         objects_part, flight_direction, height, gimbal_angle,
-                        direction_side, speed, drone_config
+                        direction_side, speed, drone_config, mission_config
                     )
                     with open(os.path.join(wpmz_dir, "template.kml"), "w", encoding="utf-8") as f:
                         f.write(kml_content)
 
                     wpml_content = create_obl_wpml(
                         objects_part, flight_direction, height, gimbal_angle,
-                        direction_side, speed, drone_config
+                        direction_side, speed, drone_config, mission_config
                     )
                     with open(os.path.join(wpmz_dir, "waylines.wpml"), "w", encoding="utf-8") as f:
                         f.write(wpml_content)
@@ -913,11 +1035,11 @@ def main():
                 wpmz_dir = "wpmz"
                 os.makedirs(wpmz_dir, exist_ok=True)
 
-                kml_content = create_vd_kml(objects_part, height, speed, drone_config)
+                kml_content = create_vd_kml(objects_part, height, speed, drone_config, mission_config)
                 with open(os.path.join(wpmz_dir, "template.kml"), "w", encoding="utf-8") as f:
                     f.write(kml_content)
 
-                wpml_content = create_vd_wpml(objects_part, height, speed, drone_config)
+                wpml_content = create_vd_wpml(objects_part, height, speed, drone_config, mission_config)
                 with open(os.path.join(wpmz_dir, "waylines.wpml"), "w", encoding="utf-8") as f:
                     f.write(wpml_content)
 

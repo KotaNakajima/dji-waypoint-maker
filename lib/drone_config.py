@@ -82,6 +82,37 @@ M3M_IMAGE_FORMATS = {
     "3": {"label": "RGB + Multispectral",         "imageFormat": "visable,narrow_band"},
 }
 
+# Default mission settings (configurable via Advanced Settings)
+DEFAULT_MISSION_CONFIG = {
+    # User-configurable
+    "finishAction": "goHome",
+    "exitOnRCLost": "executeLostAction",
+    "executeRCLostAction": "goBack",
+    "takeOffSecurityHeight": 20,
+    "globalTransitionalSpeed": 15,
+    "globalRTHHeight": 20,
+    "flyToWaylineMode": "safely",
+    "waylineAvoidLimitAreaMode": 0,
+    # Structural defaults (included in XML, not in interactive menu)
+    "dewarpingEnable": 0,
+    "returnMode": "singleReturnFirst",
+    "samplingRate": 240000,
+    "scanningMode": "nonRepetitive",
+    "modelColoringEnable": 0,
+    "quickOrthoMappingEnable": 0,
+    "facadeWaylineEnable": 0,
+    "isLookAtSceneSet": 0,
+    "smartObliqueGimbalPitch": -45,
+    "efficiencyFlightModeEnable": 0,
+}
+
+MISSION_CONFIG_OPTIONS = {
+    "finishAction": ["goHome", "autoLand", "goContinue", "hover"],
+    "exitOnRCLost": ["goContinue", "executeLostAction"],
+    "executeRCLostAction": ["goBack", "hover", "landing"],
+    "flyToWaylineMode": ["safely", "pointToPoint"],
+}
+
 # Common shutter speeds for blur-free speed calculation
 SHUTTER_SPEEDS = [500, 800, 1000, 1600, 2000]
 MAX_BLUR_PX = 0.5  # max acceptable motion blur in pixels

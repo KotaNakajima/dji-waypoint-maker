@@ -7,7 +7,11 @@ Generates both template.kml and waylines.wpml with calculated flight paths.
 import math
 import time
 
-from lib.drone_config import get_effective_camera
+from lib.drone_config import get_effective_camera, DEFAULT_MISSION_CONFIG
+from lib.xml_helpers import (
+    build_mission_config_kml, build_mission_config_wpml,
+    build_payload_param, build_start_action_group, calculate_total_distance,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +124,8 @@ def generate_mapping2d_waypoints(polygon, direction_deg, line_spacing, margin):
 # ---------------------------------------------------------------------------
 
 def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
-                         direction, margin, shoot_type, drone_config):
+                         direction, margin, shoot_type, drone_config,
+                         mission_config=None):
     """
     Generate a mapping2d KML template for area-based survey missions.
 
@@ -135,17 +140,19 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
         margin: Margin distance in meters beyond polygon boundary
         shoot_type: "time" or "distance" for photo trigger mode
         drone_config: Dict from drone_config.get_drone_config()
+        mission_config: Optional dict overriding DEFAULT_MISSION_CONFIG
 
     Returns:
         KML XML string
     """
+    if mission_config is None:
+        mission_config = DEFAULT_MISSION_CONFIG
+
     current_time = int(time.time() * 1000)
-    drone_enum = drone_config["droneEnumValue"]
-    drone_sub_enum = drone_config["droneSubEnumValue"]
-    payload_enum = drone_config["payloadEnumValue"]
-    payload_sub_enum = drone_config["payloadSubEnumValue"]
-    payload_pos = drone_config["payloadPositionIndex"]
-    image_format = drone_config["imageFormat"]
+
+    mission_config_xml = build_mission_config_kml(drone_config, mission_config)
+    payload_param_xml = build_payload_param(drone_config, mission_config,
+                                            include_sensor_fields=True)
 
     kml = f'''<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
@@ -153,23 +160,7 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
         <wpml:author>DroneRouteGenerator</wpml:author>
         <wpml:createTime>{current_time}</wpml:createTime>
         <wpml:updateTime>{current_time}</wpml:updateTime>
-        <wpml:missionConfig>
-            <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
-            <wpml:finishAction>goHome</wpml:finishAction>
-            <wpml:exitOnRCLost>goContinue</wpml:exitOnRCLost>
-            <wpml:executeRCLostAction>hover</wpml:executeRCLostAction>
-            <wpml:takeOffSecurityHeight>{height}</wpml:takeOffSecurityHeight>
-            <wpml:globalTransitionalSpeed>{speed}</wpml:globalTransitionalSpeed>
-            <wpml:droneInfo>
-                <wpml:droneEnumValue>{drone_enum}</wpml:droneEnumValue>
-                <wpml:droneSubEnumValue>{drone_sub_enum}</wpml:droneSubEnumValue>
-            </wpml:droneInfo>
-            <wpml:payloadInfo>
-                <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
-                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
-                <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
-            </wpml:payloadInfo>
-        </wpml:missionConfig>'''
+        {mission_config_xml}'''
 
     for idx, polygon in enumerate(polygons):
         coords_str = _polygon_to_coords_string(polygon, close=True)
@@ -187,10 +178,7 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
         <wpml:surfaceFollowModeEnable>0</wpml:surfaceFollowModeEnable>
         <wpml:surfaceRelativeHeight>0</wpml:surfaceRelativeHeight>
       </wpml:waylineCoordinateSysParam>
-      <wpml:payloadParam>
-        <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
-        <wpml:imageFormat>{image_format}</wpml:imageFormat>
-      </wpml:payloadParam>
+      {payload_param_xml}
       <wpml:globalWaypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:globalWaypointTurnMode>
       <wpml:globalUseStraightLine>1</wpml:globalUseStraightLine>
       <wpml:gimbalPitchMode>usePointSetting</wpml:gimbalPitchMode>
@@ -213,6 +201,11 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
         <wpml:caliFlightEnable>0</wpml:caliFlightEnable>
         <wpml:elevationOptimizeEnable>1</wpml:elevationOptimizeEnable>
         <wpml:smartObliqueEnable>0</wpml:smartObliqueEnable>
+        <wpml:quickOrthoMappingEnable>{mission_config["quickOrthoMappingEnable"]}</wpml:quickOrthoMappingEnable>
+        <wpml:facadeWaylineEnable>{mission_config["facadeWaylineEnable"]}</wpml:facadeWaylineEnable>
+        <wpml:isLookAtSceneSet>{mission_config["isLookAtSceneSet"]}</wpml:isLookAtSceneSet>
+        <wpml:smartObliqueGimbalPitch>{mission_config["smartObliqueGimbalPitch"]}</wpml:smartObliqueGimbalPitch>
+        <wpml:efficiencyFlightModeEnable>{mission_config["efficiencyFlightModeEnable"]}</wpml:efficiencyFlightModeEnable>
         <Polygon>
           <outerBoundaryIs>
             <LinearRing>
@@ -237,7 +230,7 @@ def create_mapping2d_kml(polygons, height, speed, forward_overlap, side_overlap,
 # ---------------------------------------------------------------------------
 
 def create_mapping2d_wpml(waypoints, height, speed, photo_interval,
-                          shoot_type, drone_config):
+                          shoot_type, drone_config, mission_config=None):
     """
     Generate waylines.wpml for mapping2d flight execution.
 
@@ -248,15 +241,16 @@ def create_mapping2d_wpml(waypoints, height, speed, photo_interval,
         photo_interval: Photo spacing in meters (from calculate_mapping2d_spacing).
         shoot_type: "time" or "distance".
         drone_config: Dict from drone_config.get_drone_config().
+        mission_config: Optional dict overriding DEFAULT_MISSION_CONFIG.
 
     Returns:
         WPML XML string
     """
-    drone_enum = drone_config["droneEnumValue"]
-    drone_sub_enum = drone_config["droneSubEnumValue"]
-    payload_enum = drone_config["payloadEnumValue"]
-    payload_sub_enum = drone_config["payloadSubEnumValue"]
+    if mission_config is None:
+        mission_config = DEFAULT_MISSION_CONFIG
+
     payload_pos = drone_config["payloadPositionIndex"]
+    image_format = drone_config.get("imageFormat", "wide")
 
     last_idx = len(waypoints) - 1
 
@@ -268,32 +262,25 @@ def create_mapping2d_wpml(waypoints, height, speed, photo_interval,
         trigger_type = "multipleTiming"
         trigger_param = round(photo_interval / speed, 2) if speed > 0 else 2.0
 
+    # Calculate distance and duration
+    total_distance = calculate_total_distance(waypoints)
+    total_duration = round(total_distance / speed, 2) if speed > 0 else 0.0
+
+    mission_config_xml = build_mission_config_wpml(drone_config, mission_config)
+    start_action_xml = build_start_action_group(payload_pos)
+
     wpml = f'''<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.6">
     <Document>
-        <wpml:missionConfig>
-            <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
-            <wpml:finishAction>goHome</wpml:finishAction>
-            <wpml:exitOnRCLost>goContinue</wpml:exitOnRCLost>
-            <wpml:executeRCLostAction>hover</wpml:executeRCLostAction>
-            <wpml:takeOffSecurityHeight>{height}</wpml:takeOffSecurityHeight>
-            <wpml:globalTransitionalSpeed>{speed}</wpml:globalTransitionalSpeed>
-            <wpml:globalRTHHeight>20</wpml:globalRTHHeight>
-            <wpml:droneInfo>
-                <wpml:droneEnumValue>{drone_enum}</wpml:droneEnumValue>
-                <wpml:droneSubEnumValue>{drone_sub_enum}</wpml:droneSubEnumValue>
-            </wpml:droneInfo>
-            <wpml:payloadInfo>
-                <wpml:payloadEnumValue>{payload_enum}</wpml:payloadEnumValue>
-                <wpml:payloadSubEnumValue>{payload_sub_enum}</wpml:payloadSubEnumValue>
-                <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
-            </wpml:payloadInfo>
-        </wpml:missionConfig>
+        {mission_config_xml}
     <Folder>
       <wpml:templateId>0</wpml:templateId>
       <wpml:waylineId>0</wpml:waylineId>
+      <wpml:distance>{round(total_distance, 2)}</wpml:distance>
+      <wpml:duration>{total_duration}</wpml:duration>
       <wpml:autoFlightSpeed>{speed}</wpml:autoFlightSpeed>
-      <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>'''
+      <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>
+      {start_action_xml}'''
 
     for i, (lat, lon) in enumerate(waypoints):
         wpml += f'''
@@ -316,15 +303,35 @@ def create_mapping2d_wpml(waypoints, height, speed, photo_interval,
         <wpml:useStraightLine>1</wpml:useStraightLine>'''
 
         if i == 0:
-            # First waypoint: gimbal rotation to nadir
+            # First waypoint: startTimeLapse action (gimbal init is in startActionGroup)
             wpml += f'''
         <wpml:actionGroup>
           <wpml:actionGroupId>0</wpml:actionGroupId>
           <wpml:actionGroupStartIndex>0</wpml:actionGroupStartIndex>
-          <wpml:actionGroupEndIndex>0</wpml:actionGroupEndIndex>
+          <wpml:actionGroupEndIndex>{last_idx}</wpml:actionGroupEndIndex>
           <wpml:actionGroupMode>sequence</wpml:actionGroupMode>
           <wpml:actionTrigger>
-            <wpml:actionTriggerType>reachPoint</wpml:actionTriggerType>
+            <wpml:actionTriggerType>betweenAdjacentPoints</wpml:actionTriggerType>
+          </wpml:actionTrigger>
+          <wpml:action>
+            <wpml:actionId>0</wpml:actionId>
+            <wpml:actionActuatorFunc>startTimeLapse</wpml:actionActuatorFunc>
+            <wpml:actionActuatorFuncParam>
+              <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
+              <wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex>
+              <wpml:payloadLensIndex>{image_format}</wpml:payloadLensIndex>
+              <wpml:minShootInterval>{trigger_param}</wpml:minShootInterval>
+            </wpml:actionActuatorFuncParam>
+          </wpml:action>
+        </wpml:actionGroup>
+        <wpml:actionGroup>
+          <wpml:actionGroupId>1</wpml:actionGroupId>
+          <wpml:actionGroupStartIndex>0</wpml:actionGroupStartIndex>
+          <wpml:actionGroupEndIndex>{last_idx}</wpml:actionGroupEndIndex>
+          <wpml:actionGroupMode>sequence</wpml:actionGroupMode>
+          <wpml:actionTrigger>
+            <wpml:actionTriggerType>{trigger_type}</wpml:actionTriggerType>
+            <wpml:actionTriggerParam>{trigger_param}</wpml:actionTriggerParam>
           </wpml:actionTrigger>
           <wpml:action>
             <wpml:actionId>0</wpml:actionId>
@@ -343,26 +350,15 @@ def create_mapping2d_wpml(waypoints, height, speed, photo_interval,
               <wpml:gimbalRotateTime>0</wpml:gimbalRotateTime>
             </wpml:actionActuatorFuncParam>
           </wpml:action>
-        </wpml:actionGroup>
-        <wpml:actionGroup>
-          <wpml:actionGroupId>1</wpml:actionGroupId>
-          <wpml:actionGroupStartIndex>0</wpml:actionGroupStartIndex>
-          <wpml:actionGroupEndIndex>{last_idx}</wpml:actionGroupEndIndex>
-          <wpml:actionGroupMode>sequence</wpml:actionGroupMode>
-          <wpml:actionTrigger>
-            <wpml:actionTriggerType>{trigger_type}</wpml:actionTriggerType>
-            <wpml:actionTriggerParam>{trigger_param}</wpml:actionTriggerParam>
-          </wpml:actionTrigger>
-          <wpml:action>
-            <wpml:actionId>0</wpml:actionId>
-            <wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>
-            <wpml:actionActuatorFuncParam>
-              <wpml:payloadPositionIndex>{payload_pos}</wpml:payloadPositionIndex>
-            </wpml:actionActuatorFuncParam>
-          </wpml:action>
         </wpml:actionGroup>'''
 
-        wpml += '''
+        wpml += f'''
+        <wpml:waypointGimbalHeadingParam>
+          <wpml:waypointGimbalPitchAngle>0</wpml:waypointGimbalPitchAngle>
+          <wpml:waypointGimbalYawAngle>0</wpml:waypointGimbalYawAngle>
+        </wpml:waypointGimbalHeadingParam>
+        <wpml:isRisky>0</wpml:isRisky>
+        <wpml:waypointWorkType>0</wpml:waypointWorkType>
       </Placemark>'''
 
     wpml += '''
